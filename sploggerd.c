@@ -1,9 +1,6 @@
 #include <sp.h>
 
-/* I *think* this is in seconds but it's not clear from the API */
-#ifndef TCP_TIMEOUT
-#define TCP_TIMEOUT 5
-#endif
+#define SPLOGGER_MAX_GROUPS
 
 int main(int argc, char **argv) {
 	int ret;
@@ -16,6 +13,13 @@ int main(int argc, char **argv) {
 		SP_error(ret);
 		return -1;
 	}
+
+	int service_type = 0;
+	int num_groups;
+
+	char sender[MAX_GROUP_NAME];
+
+	SP_receive(mbox, (service *) &service_type, sender, SPLOGGER_MAX_GROUPS, &num_groups, 
 
 	/* Disconnect */
 	ret = SP_disconnect(mbox);
