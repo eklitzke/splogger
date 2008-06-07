@@ -1,4 +1,5 @@
 #include <sp.h>
+#include <string.h>
 
 #define SPLOGGER_PORT "4803"
 
@@ -16,6 +17,10 @@ int main(int argc, char **argv) {
 
 	/* Send out a message */
 	char *msg = "hello world";
+
+	int16 splogger_mess_type = 1; /* doesn't reall do anything */
+
+	ret = SP_multicast(mbox, RELIABLE_MESS | SELF_DISCARD, "sploggerd", splogger_mess_type, strlen(msg) + 1, msg);
 
 	/* Disconnect */
 	ret = SP_disconnect(mbox);
