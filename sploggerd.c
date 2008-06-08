@@ -26,8 +26,7 @@ static char mess_buf[MAX_MESSLEN];
 static mailbox mbox;
 static char *group_name = NULL;
 static char *config_name = NULL;
-
-static (file_tbl *) code_table[MAX_CODE];
+file_tbl* code_table[MAX_CODE];
 
 void shutdown_cleanly();
 void splogger_signal(int signum);
@@ -56,7 +55,7 @@ int main(int argc, char **argv) {
 				if (optopt == 'g')
 					fprintf(stderr, "Must pass a group name to the -g option.\n");
 				else if (optopt == 'c')
-					fprintf(stderr, "Must pass the path to a config file to the -c option.\n");
+					fprintf(stderr, "Must pass the path for a config file to the -c option.\n");
 				else if (isprint(optopt))
 					fprintf(stderr, "Unknown option `-%c'.\n", optopt);
 				else
@@ -102,6 +101,7 @@ int main(int argc, char **argv) {
 
 	signal(SIGINT, splogger_signal);
 	signal(SIGQUIT, splogger_signal);
+	signal(SIGHUP, splogger_signal);
 
 	/* Connect on 127.0.0.1:4803 */
 	ret = SP_connect("4803", NULL, 0, 0, &mbox, pgroupname);
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
 
 		file_tbl *ent = code_table[mess_type];
 		if (ent == NULL) {
-			fprintf(stderr, "Code %d does not exit in code table.\n", code);
+			fprintf(stderr, "Code %d does not exit in code table.\n", mess_type);
 			continue;
 		}
 
@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
 }
 
 void shutdown_cleanly() {
-	/* Leave the sploggerd group */
+	/* Leave the group */
 	int ret1, ret2;
 	ret1 = SP_leave(mbox, group_name);
 
@@ -200,7 +200,9 @@ void splogger_signal(int signum) {
 /* This runs once when the program starts -- it's also the routine called when
  * the program receives a SIGHUP.
  *
- * TODO: Report parse errors better, try not to bail out in this function
+ * TODO: Report parse errors better, try not to bail out in this function if
+ * the file can't be forced (i.e. if someone SIGHUPs the process and the new
+ * config file is invalid it would be bad to exit the sploggerd process!).
  */
 void load_config() {
 	int ret = open(config_name, O_RDONLY);
@@ -213,10 +215,10 @@ void load_config() {
 	/* Clear out the old table */
 	for (i = 0; i < MAX_CODE; i++) {
 		file_tbl *ent = code_table[i];
-		if (file_tbl == NULL)
+		if (ent == NULL)
 			continue;
-		close(file_tbl->fd);
-		free(file_tble->fname);
+		close(ent->fd);
+		free(ent->fname);
 	}
 
 	int start, end;
@@ -226,11 +228,14 @@ void load_config() {
 	char *line_buf = NULL;
 	while (1) {
 		start = 0;
-		printf("reading line...\n");
+		errno = 0;
 		ret = getline(&line_buf, &buf_size, config_file);
 		if (ret == -1) {
+			/* Break out of the loop on EOF */
+			if (errno == 0)
+				break;
 			perror("getline()");
-			exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE); /* FIXME: no reason to abort */
 		}
 
 		/* Strip initial whitespace */
@@ -239,15 +244,15 @@ void load_config() {
 			continue;
 
 		/* Strip the comment if present */
-		for (end = start; (end < buf_size) && (line_buf[end] != '#'); end++);
+		for (end = start; (end < buf_size) && (line_buf[end] != '#') && (line_buf[end] != '\0'); end++);
 
 		/* Strip trailing whitespace */
-		for (; (end > start) && isspace(line_buf[end]); end++);
+		for (end--; (end > start) && isspace(line_buf[end]); end--);
 		if (end == start)
 			continue;
 
 		/* Null terminate the string */
-		line_buf[end] = '\0';
+		line_buf[end + 1] = '\0';
 
 		errno = 0;
 		char *tail_ptr;
@@ -264,9 +269,11 @@ void load_config() {
 		if (tail_ptr[start] == '\0')
 			continue;
 
+		code_table[code] = malloc(sizeof(file_tbl));
+
 		/* Add the entry to the code table */
-		code_table[code].fname = strdup(tail_ptr + start);
-		ret = open(code_table[code].fname, OPEN_FLAGS, OPEN_MODE);
+		code_table[code]->fname = strdup(tail_ptr + start);
+		ret = open(code_table[code]->fname, OPEN_FLAGS, OPEN_MODE);
 		if (ret == -1) {
 			perror("open() in config init");
 			exit(EXIT_FAILURE);
@@ -274,5 +281,5 @@ void load_config() {
 	}
 
 	/* Free the space created by getline */
-	free(line_buf);
+	/*free(line_buf);*/
 }
