@@ -8,6 +8,8 @@
 /* The default port to connect to */
 #define SPLOGGER_PORT "4803"
 
+#define BUFSIZE (8 * 1024)
+
 int main(int argc, char **argv) {
 	int c;
 	char port[6] = SPLOGGER_PORT;
@@ -61,8 +63,16 @@ int main(int argc, char **argv) {
 
 	int16 splogger_mess_type = 1; /* doesn't really do anything */
 
-	ret = SP_multicast(mbox, FIFO_MESS | SELF_DISCARD, group_name,
-			splogger_mess_type, strlen(msg), msg);
+	char buf[BUFSIZE];
+	/* FIXME: assumes stdin in 0 */
+	while (1) {
+		ret = read(0, buf, BUFSIZE);
+		if (ret == 0)
+			break;
+
+		ret = SP_multicast(mbox, FIFO_MESS | SELF_DISCARD, group_name,
+				splogger_mess_type, ret, buf);
+	}
 
 	/* Disconnect */
 	ret = SP_disconnect(mbox);
