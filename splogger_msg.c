@@ -5,19 +5,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+
 /* The default port to connect to */
 #define SPLOGGER_PORT "4803"
 
-#define BUFSIZE (8 * 1024)
+#define BUFSIZE (16 * 1024)
 
 int main(int argc, char **argv) {
 	int c;
 	char port[6] = SPLOGGER_PORT;
 	char *group_name = NULL;
+	int16 code = 0;
 
 	opterr = 0;
 
-	while ((c = getopt(argc, argv, "hg:p:")) != -1) {
+	while ((c = getopt(argc, argv, "hg:p:c:")) != -1) {
 		switch (c) {
 			case 'g':
 				group_name = malloc(MAX_GROUP_NAME);
@@ -25,6 +31,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'p':
 				strncpy(port, optarg, 5);
+				break;
+			case 'c':
+				code = (int16) atoi(optarg);
 				break;
 			case '?':
 				if (optopt == 'g')
@@ -58,21 +67,32 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	/* Send out a message */
-	char *msg = "hello world";
-
-	int16 splogger_mess_type = 1; /* doesn't really do anything */
-
-	char buf[BUFSIZE];
-	/* FIXME: assumes stdin in 0 */
-	while (1) {
-		ret = read(0, buf, BUFSIZE);
-		if (ret == 0)
-			break;
-
-		ret = SP_multicast(mbox, FIFO_MESS | SELF_DISCARD, group_name,
-				splogger_mess_type, ret, buf);
+	/* Open the file */
+	int input_fd = 0; /* Default is stdin */
+	if (optind < argc) {
+		input_fd = open(argv[optind], O_RDONLY);
+		if (input_fd < 0) {
+			perror("open()");
+			exit(EXIT_FAILURE);
+		}
 	}
+
+	/* Read in the buffer */
+	int bytes_read = 0;
+	char buf[BUFSIZE];
+	while (1) {
+		ret = read(input_fd, buf + bytes_read, BUFSIZE - bytes_read);
+		if (ret == 0) {
+			close(input_fd);
+			break;
+		}
+		bytes_read += ret;
+
+	}
+
+	/* Send out the message */
+	ret = SP_multicast(mbox, FIFO_MESS | SELF_DISCARD, group_name, code,
+			bytes_read, buf);
 
 	/* Disconnect */
 	ret = SP_disconnect(mbox);

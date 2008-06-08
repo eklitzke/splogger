@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 
 	opterr = 0;
 
-	while ((c = getopt(argc, argv, "hng:c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "hng:c:d")) != -1) {
 		switch (c) {
 			case 'h':
 				printf("Usage: splogger -g group_name [-h] [-c config_name] [-d]\n");
@@ -92,18 +92,20 @@ int main(int argc, char **argv) {
 	struct stat stat_buf;
 	ret = stat(config_name, &stat_buf);
 	if (ret == -1) {
-		perror("stat()");
+		if (errno == ENOENT)
+			fprintf(stderr, "Config file %s does not exist!\n", config_name);
+		else
+			perror("stat()");
 		exit(EXIT_FAILURE);
 	}
 
 	if (!S_ISREG(stat_buf.st_mode)) {
-		fprintf(stderr, "config file `%s' isn't a regular file or doesn't exit.\n", config_name);
+		fprintf(stderr, "config file `%s' isn't a regular file.\n", config_name);
 		exit(EXIT_FAILURE);
 	}
 
 	/* Load the configuration settings */
 	load_config(0);
-
 
 	char pgroupname[MAX_GROUP_NAME];
 
@@ -115,7 +117,7 @@ int main(int argc, char **argv) {
 	 * configuration so we can print parse errors and the like. */
 
 	if (daemon) {
-		pid_t pid, sid;
+		pid_t pid;
 		pid = fork();
 		if (pid < 0) {
 			perror("fork()");
@@ -124,15 +126,16 @@ int main(int argc, char **argv) {
 			exit(EXIT_SUCCESS);
 
 		umask(0);
-		sid = setsid();
-		if (sid < 0) {
+		if (setsid() < 0) {
 			perror("setsid()");
 			exit(EXIT_FAILURE);
 		}
-		if ((chdir("/")) < 0) {
+		if (chdir("/") < 0) {
 			perror("chdir()");
 			exit(EXIT_FAILURE);
 		}
+		close(0); close(1); close(2);
+	}
 
 	/* Connect on 127.0.0.1:4803 */
 	ret = SP_connect("4803", NULL, 0, 0, &mbox, pgroupname);
@@ -160,8 +163,10 @@ int main(int argc, char **argv) {
 				&endian_mismatch, MAX_MESSLEN - 1, mess_buf);
 
 		/* Handle error conditions */
-		if (bytes_recvd < 0)
+		if (bytes_recvd < 0) {
+			printf("br %d\n", bytes_recvd);
 			splogger_fail(bytes_recvd);
+		}
 
 		if (mess_type >= MAX_CODE) {
 			fprintf(stderr, "Got unexpected code %d.\n", mess_type);
@@ -237,6 +242,10 @@ void load_config(int dummy) {
 	int start, end;
 
 	FILE *config_file = fopen(config_name, "r");
+	if (config_file == NULL) {
+		perror("fopen()");
+		exit(EXIT_FAILURE);
+	}
 
 	size_t buf_size = 0;
 	char *line_buf = NULL;
@@ -298,6 +307,7 @@ void load_config(int dummy) {
 			perror("open() in config init");
 			exit(EXIT_FAILURE);
 		}
+		code_table[code]->fd = ret;
 	}
 
 	fclose(config_file);
