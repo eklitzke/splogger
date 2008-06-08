@@ -35,11 +35,16 @@ int main(int argc, char **argv) {
 	int c, i;
 	int ret;
 	int add_newlines = 0;
+	int daemon = 0;
 
 	opterr = 0;
 
-	while ((c = getopt(argc, argv, "ng:c:")) != -1) {
+	while ((c = getopt(argc, argv, "hng:c:d:")) != -1) {
 		switch (c) {
+			case 'h':
+				printf("Usage: splogger -g group_name [-h] [-c config_name] [-d]\n");
+				exit(EXIT_SUCCESS);
+				break;
 			case 'g':
 				group_name = malloc(MAX_GROUP_NAME); /* FIXME */
 				strncpy(group_name, optarg, MAX_GROUP_NAME - 1);
@@ -49,6 +54,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'c':
 				config_name = strdup(optarg);
+				break;
+			case 'd':
+				daemon++;
 				break;
 			case '?':
 				if (optopt == 'g')
@@ -80,9 +88,6 @@ int main(int argc, char **argv) {
 	for (i = 0; i < MAX_CODE; i++)
 		code_table[i] = NULL;
 
-	/* Load the configuration settings */
-	load_config(0);
-
 	/* Now we need to validate the path to the config file */
 	struct stat stat_buf;
 	ret = stat(config_name, &stat_buf);
@@ -96,11 +101,38 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	/* Load the configuration settings */
+	load_config(0);
+
+
 	char pgroupname[MAX_GROUP_NAME];
 
 	signal(SIGHUP, load_config);
 	signal(SIGINT, shutdown_cleanly);
 	signal(SIGQUIT, shutdown_cleanly);
+
+	/* Now it's safe to daemonize. We want to do this after loading up the
+	 * configuration so we can print parse errors and the like. */
+
+	if (daemon) {
+		pid_t pid, sid;
+		pid = fork();
+		if (pid < 0) {
+			perror("fork()");
+			exit(EXIT_FAILURE);
+		} else if (pid > 0)
+			exit(EXIT_SUCCESS);
+
+		umask(0);
+		sid = setsid();
+		if (sid < 0) {
+			perror("setsid()");
+			exit(EXIT_FAILURE);
+		}
+		if ((chdir("/")) < 0) {
+			perror("chdir()");
+			exit(EXIT_FAILURE);
+		}
 
 	/* Connect on 127.0.0.1:4803 */
 	ret = SP_connect("4803", NULL, 0, 0, &mbox, pgroupname);
@@ -253,6 +285,7 @@ void load_config(int dummy) {
 
 		code_table[code] = malloc(sizeof(file_tbl));
 
+		/* I think there's a better way to do this in C, I just don't know how */
 		char *full_name = malloc(strlen(tail_ptr + start) + strlen(".splog") + 10);
 		full_name[0] = '\0';
 		strcat(full_name, tail_ptr + start);

@@ -1,0 +1,22 @@
+* Lots of cleanups needed to make it fail more gracefully (right now almost any
+  sort of failure whatsoever will result in a call to exit(EXIT_FAILURE)). It
+  should be possible to recover from a lot of the errors that are encountered.
+  This is especially important for a daemon which is expected to stay up 24x7.
+
+* There's almost no client support at the moment, other than splogger_msg which
+  is a debugging tool to send log messages to the splogger system. Need to
+  update splogger_msg to use the new message type system. Need to write a
+  Python module for interacting with the splogger system.
+
+* Add logging to sploggerd. It should log basic things like parse errors and
+  when it gets HUPed. Should probably log to syslog (!) by default, with, an
+  option to use itself for logging.
+
+* With respect to error handling and logging, the following sorts of errors
+  should definitely be recoverable and when they are encountered the error
+  should be logged and the daemon should proceed gracefully:
+   - Parse errors should be logged and those lines should be ignored
+   - Unknown message types should be redirected to a special log (so we don't
+     ever lose data) and the event should be logged
+
+* Better signal handling.
