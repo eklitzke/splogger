@@ -203,6 +203,7 @@ void load_config(int dummy) {
 	}
 
 	int start, end;
+
 	FILE *config_file = fopen(config_name, "r");
 
 	size_t buf_size = 0;
@@ -252,9 +253,14 @@ void load_config(int dummy) {
 
 		code_table[code] = malloc(sizeof(file_tbl));
 
+		char *full_name = malloc(strlen(tail_ptr + start) + strlen(".splog") + 10);
+		full_name[0] = '\0';
+		strcat(full_name, tail_ptr + start);
+		strcat(full_name, ".splog");
+
 		/* Add the entry to the code table */
-		code_table[code]->fname = strdup(tail_ptr + start);
-		ret = open(code_table[code]->fname, OPEN_FLAGS, OPEN_MODE);
+		code_table[code]->fname = full_name;
+		ret = open(full_name, OPEN_FLAGS, OPEN_MODE);
 		if (ret == -1) {
 			perror("open() in config init");
 			exit(EXIT_FAILURE);
