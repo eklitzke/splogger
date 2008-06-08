@@ -1,0 +1,29 @@
+Splogger is a distributed logging system using Spread (http://www.spread.org/).
+It uses version 4.0 of the Spread API. You can set up multiple loggers on
+different hosts. When clients send out a message it will be broadcast to all of
+the sploggerd daemons. Splogger is written in such a way that the logs on all
+hosts will be identical, even if networking latencies cause messages to be
+delivered out of order. For example, if a host logs the message "foo" and then
+the message "bar", all splogger daemons are guaranteed to log the messages in
+that order.
+
+N.B. A lot of the text below might not actually be applicable to the current
+version of splogger, and instead describes how splogger *will* work.
+
+To use splogger, you run one or more sploggerd daemons. Each sploggerd daemon
+listens on a group, and the intention is that all of the sploggerd daemons for
+an application will share one group.
+
+When you log a message, you send a code indicating which log you want the
+message to go to (right now you can only send one code). The meaning of the
+codes is controlled by a configuration file with synatx like this:
+
+1 ad_clicks # log for ad clicks
+2 bad_http_requests # log bad http requests
+3 foo
+
+In this example, we've associated code 1 with the log file "ad_clicks". As you
+can see, splogger uses the usual convention of # for comments. Trailing
+whitespace (after removing the comment) is ignored, as is all whitespace
+between the code and the first non-whitespace character. Having whitespace in
+the log name is OK.

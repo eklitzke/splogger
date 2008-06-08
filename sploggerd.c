@@ -28,9 +28,8 @@ static char *group_name = NULL;
 static char *config_name = NULL;
 file_tbl* code_table[MAX_CODE];
 
-void shutdown_cleanly();
-void splogger_signal(int signum);
-void load_config();
+void shutdown_cleanly(int dummy);
+void load_config(int dummy);
 
 int main(int argc, char **argv) {
 	int c, i;
@@ -82,7 +81,7 @@ int main(int argc, char **argv) {
 		code_table[i] = NULL;
 
 	/* Load the configuration settings */
-	load_config();
+	load_config(0);
 
 	/* Now we need to validate the path to the config file */
 	struct stat stat_buf;
@@ -99,9 +98,9 @@ int main(int argc, char **argv) {
 
 	char pgroupname[MAX_GROUP_NAME];
 
-	signal(SIGINT, splogger_signal);
-	signal(SIGQUIT, splogger_signal);
-	signal(SIGHUP, splogger_signal);
+	signal(SIGHUP, load_config);
+	signal(SIGINT, shutdown_cleanly);
+	signal(SIGQUIT, shutdown_cleanly);
 
 	/* Connect on 127.0.0.1:4803 */
 	ret = SP_connect("4803", NULL, 0, 0, &mbox, pgroupname);
@@ -162,10 +161,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	shutdown_cleanly();
+	shutdown_cleanly(0);
 }
 
-void shutdown_cleanly() {
+void shutdown_cleanly(int dummy) {
 	/* Leave the group */
 	int ret1, ret2;
 	ret1 = SP_leave(mbox, group_name);
@@ -182,35 +181,17 @@ void shutdown_cleanly() {
 	exit(EXIT_SUCCESS);
 }
 
-void splogger_signal(int signum) {
-	switch(signum) {
-		case SIGQUIT:
-		case SIGINT:
-			shutdown_cleanly();
-			break;
-		case SIGHUP:
-			load_config();
-			break;
-		default:
-			fprintf(stderr, "Got unknown signal %d\n", signum);
-			exit(EXIT_FAILURE);
-	}
-}
-
 /* This runs once when the program starts -- it's also the routine called when
  * the program receives a SIGHUP.
  *
  * TODO: Report parse errors better, try not to bail out in this function if
  * the file can't be forced (i.e. if someone SIGHUPs the process and the new
  * config file is invalid it would be bad to exit the sploggerd process!).
+ *
+ * FIXME: This function does extra open/close and malloc/free operations
  */
-void load_config() {
-	int ret = open(config_name, O_RDONLY);
-	int i;
-	if (ret < 0) {
-		perror("open()");
-		exit(EXIT_FAILURE);
-	}
+void load_config(int dummy) {
+	int i, ret;
 
 	/* Clear out the old table */
 	for (i = 0; i < MAX_CODE; i++) {
@@ -279,6 +260,8 @@ void load_config() {
 			exit(EXIT_FAILURE);
 		}
 	}
+
+	fclose(config_file);
 
 	/* Free the space created by getline */
 	/*free(line_buf);*/
