@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <ctype.h> /* isspace */
 #include <unistd.h>
+#include <stdint.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,7 +21,16 @@
 #define SPLOGGER_MAX_GROUPS 10
 #define MAX_MEMBERS         100
 #define MAX_MESSLEN         102400
+
+/* Must be a power of 2 */
 #define MAX_CODE            256
+
+/* Parse error codes */
+#define PARSE_ERR_GEN    0x01 /* generic error (e.g. if getline() fails) */
+#define PARSE_ERR_FILE   0x02 /* couldn't open the log file */
+#define PARSE_ERR_CODE   0x04 /* couldn't parse the code for the line */
+#define PARSE_ERR_LOGN   0x08 /* rule didn't have a log name */
+#define ADD_PERR(x, c) (x | (c << 16))
 
 #define OPEN_FLAGS	(O_APPEND | O_CREAT | O_WRONLY)
 #define OPEN_MODE	(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH)
@@ -225,13 +235,14 @@ void shutdown_cleanly(int dummy) {
 /* This runs once when the program starts -- it's also the routine called when
  * the program receives a SIGHUP.
  *
- * TODO: Better parse error handling (indicate what kind of error).
- *
- * FIXME: This function does extra open/close and malloc/free operations
+ * FIXME: This function does extra open/close and malloc/free operations (this
+ * is a pretty low hanging fruit -- the file can't have more than a few hundred
+ * codes, so this function is going to be really fast anyhow). I'm think it may
+ * leak a few bytes per rule.
  */
 void load_config(int dummy) {
 	int i, ret;
-	int parse_error_lines[MAX_CODE];
+	uint32_t parse_error_lines[MAX_CODE];
 
 	/* Clear out the old table, clear the list of line errors */
 	for (i = 0; i < MAX_CODE; i++) {
@@ -252,6 +263,8 @@ void load_config(int dummy) {
 		exit(EXIT_FAILURE);
 	}
 
+#define PERR(e) (line_num | (e << 16))
+
 	int line_num = 0;
 	int num_parse_errors = 0;
 
@@ -267,7 +280,7 @@ void load_config(int dummy) {
 			if (errno == 0)
 				break;
 			perror("getline()");
-			parse_error_lines[num_parse_errors++] = line_num;
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_GEN);
 			continue;
 		}
 
@@ -293,21 +306,26 @@ void load_config(int dummy) {
 
 		if (errno) {
 			perror("strtol()");
-			parse_error_lines[num_parse_errors++] = line_num;
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_CODE);
 			continue;
 		}
 
 		/* If none of line_buf was consumed, there wasn't a number on the line,
 		 * and the line has a parse error */
 		if (tail_ptr == line_buf) {
-			parse_error_lines[num_parse_errors++] = line_num;
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_CODE);
 			continue;
 		}
 
-		/* Consume whitespace */
+		if (tail_ptr[0] == '\0') {
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_LOGN);
+			continue;
+		}
+
+		/* Try to consume whitespace */
 		for (start = 0; isspace(tail_ptr[start]); start++);
-		if (!start || tail_ptr[start] == '\0') {
-			parse_error_lines[num_parse_errors++] = line_num;
+		if (!start) {
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_CODE);
 			continue;
 		}
 
@@ -324,7 +342,7 @@ void load_config(int dummy) {
 		ret = open(full_name, OPEN_FLAGS, OPEN_MODE);
 		if (ret == -1) {
 			perror("open() in config init");
-			parse_error_lines[num_parse_errors++] = line_num;
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_FILE);
 			code_table[code] = NULL;
 			continue;
 		}
@@ -333,10 +351,30 @@ void load_config(int dummy) {
 
 	/* Print out lines with syntax errors */
 	if (num_parse_errors) {
-		fprintf(stderr, "The following lines had parse errors (or the log file could not be opened):");
-		for (i = 0; i < num_parse_errors; i++)
-			fprintf(stderr, " %d", parse_error_lines[i]);
-		fputc('\n', stderr);
+		fprintf(stderr, "There were errors parsing/executing the following lines from %s:\n",
+				config_name);
+		for (i = 0; i < num_parse_errors; i++) {
+			uint16_t lnum = parse_error_lines[i] & (MAX_CODE - 1);
+			uint16_t err_code = parse_error_lines[i] >> 16;
+			switch (err_code) {
+				case PARSE_ERR_GEN:
+					fprintf(stderr, "%hu: unknown/libc error\n", lnum);
+					break;
+				case PARSE_ERR_CODE:
+					fprintf(stderr, "%hu: could not read code\n", lnum);
+					break;
+				case PARSE_ERR_FILE:
+					fprintf(stderr, "%hu: could not open log file\n", lnum);
+					break;
+				case PARSE_ERR_LOGN:
+					fprintf(stderr, "%hu: rule had a code but no name\n", lnum);
+					break;
+				default:
+					fprintf(stderr, "%hu: unexpected error, unknown error code %hu\n",
+							lnum, err_code);
+					break;
+			}
+		}
 	}
 
 	fclose(config_file);

@@ -18,6 +18,3 @@
      ever lose data) and the event should be logged
 
 * Better signal handling.
-
-* Make the parse error handling a little better (i.e. indicate what the problem
-  is for each line -- can do this using a bit mask)
