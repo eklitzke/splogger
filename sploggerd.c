@@ -229,14 +229,17 @@ void shutdown_cleanly(int dummy) {
  */
 void load_config(int dummy) {
 	int i, ret;
+	int parse_error_lines[MAX_CODE];
 
-	/* Clear out the old table */
+	/* Clear out the old table, clear the list of line errors */
 	for (i = 0; i < MAX_CODE; i++) {
 		file_tbl *ent = code_table[i];
 		if (ent == NULL)
 			continue;
 		close(ent->fd);
 		free(ent->fname);
+
+		parse_error_lines[i] = 0;
 	}
 
 	int start, end;
@@ -247,9 +250,13 @@ void load_config(int dummy) {
 		exit(EXIT_FAILURE);
 	}
 
+	int line_num = 0;
+	int num_parse_errors = 0;
+
 	size_t buf_size = 0;
 	char *line_buf = NULL;
 	while (1) {
+		line_num++;
 		start = 0;
 		errno = 0;
 		ret = getline(&line_buf, &buf_size, config_file);
@@ -258,7 +265,8 @@ void load_config(int dummy) {
 			if (errno == 0)
 				break;
 			perror("getline()");
-			exit(EXIT_FAILURE); /* FIXME: no reason to abort */
+			parse_error_lines[num_parse_errors++] = line_num;
+			continue;
 		}
 
 		/* Strip initial whitespace */
@@ -284,7 +292,8 @@ void load_config(int dummy) {
 		/* FIXME: we can recover from this */
 		if (errno) {
 			perror("strtol()");
-			exit(EXIT_FAILURE);
+			parse_error_lines[num_parse_errors++] = line_num;
+			continue;
 		}
 
 		/* Consume whitespace */
@@ -305,9 +314,19 @@ void load_config(int dummy) {
 		ret = open(full_name, OPEN_FLAGS, OPEN_MODE);
 		if (ret == -1) {
 			perror("open() in config init");
-			exit(EXIT_FAILURE);
+			parse_error_lines[num_parse_errors++] = line_num;
+			code_table[code] = NULL;
+			continue;
 		}
 		code_table[code]->fd = ret;
+	}
+
+	/* Print out lines with syntax errors */
+	if (num_parse_errors) {
+		fprintf(stderr, "The following lines had parse errors (or the log file could not be opened):");
+		for (i = 0; i < num_parse_errors; i++)
+			fprintf(stderr, " %d", parse_error_lines[i]);
+		fprintf(stderr, "\n");
 	}
 
 	fclose(config_file);
