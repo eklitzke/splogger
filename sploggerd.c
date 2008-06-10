@@ -1,4 +1,4 @@
-#define _GNU_SOURCE /* Use GNU getline */
+#define _GNU_SOURCE /* Use GNU extensions, like GNU getline */
 
 #include <sp.h>
 #include <stdlib.h>
@@ -277,11 +277,11 @@ void load_config(int dummy) {
 			continue;
 
 		/* Strip the comment if present */
-		for (end = start; (end < buf_size) && (line_buf[end] != '#') && (line_buf[end] != '\0'); end++);
+		for (end = start; (line_buf[end] != '#') && (line_buf[end] != '\0'); end++);
 
 		/* Strip trailing whitespace */
-		for (end--; (end > start) && isspace(line_buf[end]); end--);
-		if (end == start)
+		for (end--; (end >= start) && isspace(line_buf[end]); end--);
+		if (end < start)
 			continue;
 
 		/* Null terminate the string */
@@ -293,6 +293,13 @@ void load_config(int dummy) {
 
 		if (errno) {
 			perror("strtol()");
+			parse_error_lines[num_parse_errors++] = line_num;
+			continue;
+		}
+
+		/* If none of line_buf was consumed, there wasn't a number on the line,
+		 * and the line has a parse error */
+		if (tail_ptr == line_buf) {
 			parse_error_lines[num_parse_errors++] = line_num;
 			continue;
 		}
@@ -327,7 +334,7 @@ void load_config(int dummy) {
 		fprintf(stderr, "The following lines had parse errors (or the log file could not be opened):");
 		for (i = 0; i < num_parse_errors; i++)
 			fprintf(stderr, " %d", parse_error_lines[i]);
-		fprintf(stderr, "\n");
+		fputc('\n', stderr);
 	}
 
 	fclose(config_file);
@@ -335,3 +342,5 @@ void load_config(int dummy) {
 	/* Free the space created by getline */
 	/*free(line_buf);*/
 }
+
+/* vim: set tw=4 sw=4 noet */
