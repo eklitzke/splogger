@@ -306,8 +306,10 @@ void load_config(int dummy) {
 
 		/* Consume whitespace */
 		for (start = 0; isspace(tail_ptr[start]); start++);
-		if (tail_ptr[start] == '\0')
+		if (!start || tail_ptr[start] == '\0') {
+			parse_error_lines[num_parse_errors++] = line_num;
 			continue;
+		}
 
 		code_table[code] = malloc(sizeof(file_tbl));
 
