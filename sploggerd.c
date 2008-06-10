@@ -221,9 +221,7 @@ void shutdown_cleanly(int dummy) {
 /* This runs once when the program starts -- it's also the routine called when
  * the program receives a SIGHUP.
  *
- * TODO: Report parse errors better, try not to bail out in this function if
- * the file can't be forced (i.e. if someone SIGHUPs the process and the new
- * config file is invalid it would be bad to exit the sploggerd process!).
+ * TODO: Better parse error handling (indicate what kind of error).
  *
  * FIXME: This function does extra open/close and malloc/free operations
  */
@@ -289,7 +287,6 @@ void load_config(int dummy) {
 		char *tail_ptr;
 		long code = strtol(line_buf + start, &tail_ptr, 0);
 
-		/* FIXME: we can recover from this */
 		if (errno) {
 			perror("strtol()");
 			parse_error_lines[num_parse_errors++] = line_num;
