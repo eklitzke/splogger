@@ -1,3 +1,5 @@
+#define _GNU_SOURCE /* Use GNU getline */
+
 #include <sp.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -5,6 +7,8 @@
 #include <getopt.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h> /* isspace */
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -26,7 +30,7 @@ static char mess_buf[MAX_MESSLEN];
 static mailbox mbox;
 static char *group_name = NULL;
 static char *config_name = NULL;
-file_tbl* code_table[MAX_CODE];
+static file_tbl* code_table[MAX_CODE];
 
 void shutdown_cleanly(int dummy);
 void load_config(int dummy);

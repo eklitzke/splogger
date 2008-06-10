@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h> /* isspace */
 
 #include <sys/types.h>
 #include <sys/stat.h>
