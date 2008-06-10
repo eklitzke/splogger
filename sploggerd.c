@@ -10,6 +10,7 @@
 #include <ctype.h> /* isspace */
 #include <unistd.h>
 #include <stdint.h>
+#include <assert.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -56,7 +57,11 @@ int main(int argc, char **argv) {
 	while ((c = getopt(argc, argv, "hng:c:d")) != -1) {
 		switch (c) {
 			case 'h':
-				printf("Usage: splogger -g group_name [-h] [-c config_name] [-d]\n");
+				printf("Usage: splogger -g group_name [-h] [-d] [-f rule_file] [-c config_file]\n");
+				printf(" -h   print this help text\n");
+				printf(" -f   use this file for code/name rules\n");
+				printf(" -c   use this configuration file\n");
+				printf(" -d   run sploggerd as a daemon\n");
 				exit(EXIT_SUCCESS);
 				break;
 			case 'g':
@@ -66,7 +71,7 @@ int main(int argc, char **argv) {
 			case 'n':
 				add_newlines++;
 				break;
-			case 'c':
+			case 'f':
 				config_name = strdup(optarg);
 				break;
 			case 'd':
@@ -126,6 +131,7 @@ int main(int argc, char **argv) {
 	signal(SIGHUP, load_config);
 	signal(SIGINT, shutdown_cleanly);
 	signal(SIGQUIT, shutdown_cleanly);
+	signal(SIGTERM, shutdown_cleanly);
 
 	/* Now it's safe to daemonize. We want to do this after loading up the
 	 * configuration so we can print parse errors and the like. */
@@ -177,10 +183,8 @@ int main(int argc, char **argv) {
 				&endian_mismatch, MAX_MESSLEN - 1, mess_buf);
 
 		/* Handle error conditions */
-		if (bytes_recvd < 0) {
-			printf("br %d\n", bytes_recvd);
+		if (bytes_recvd < 0)
 			splogger_fail(bytes_recvd);
-		}
 
 		if (mess_type >= MAX_CODE) {
 			fprintf(stderr, "Got unexpected code %d.\n", mess_type);
@@ -212,10 +216,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	shutdown_cleanly(0);
+	assert(0); /* Not reached */
 }
 
-void shutdown_cleanly(int dummy) {
+void shutdown_cleanly(int signal) {
 	/* Leave the group */
 	int ret1, ret2;
 	ret1 = SP_leave(mbox, group_name);
@@ -229,7 +233,12 @@ void shutdown_cleanly(int dummy) {
 	if (ret1)
 		splogger_fail(ret1);
 
-	exit(EXIT_SUCCESS);
+	switch (signal) {
+		case SIGQUIT:
+			exit(EXIT_FAILURE);
+		default:
+			exit(EXIT_SUCCESS);
+	}
 }
 
 /* This runs once when the program starts -- it's also the routine called when

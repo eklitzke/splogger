@@ -19,6 +19,7 @@ Essential
   write a Python module for interacting with the splogger system.
 
 * Better configuration
+   - Should be able to configure host/port of spread daemon
    - Should be able to configure the synchronization level
 
 * Health monitoring (if possible). It would be good to be able to kick out slow
@@ -29,12 +30,18 @@ Essential
   when it gets HUPed. Should probably log to syslog (!) by default, with, an
   option to use itself for logging.
 
+* Test redundancy and fault tolerance.
+
 
 Wishlist
 --------
-* Better signal handling (or maybe not -- right now SIGINT, SIGQUIT, and SIGHUP
-  are covered).
+* Better signal handling (or maybe not -- right now SIGINT, SIGQUIT, SIGTERM,
+  and SIGHUP are covered).
 
 * Unit tests
 
 * Benchmarks
+
+* Profile memory usage under a stress test and try to eliminate memory leaks
+
+* Long (GNU-style) options
