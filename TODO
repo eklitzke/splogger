@@ -9,6 +9,10 @@ Essential
    - Unknown message types should be redirected to a special log (so we don't
      ever lose data) and the event should be logged
 
+* Ability to send out new configurations from a single host with a command line
+  client that reads the config file and sends out the config data over a
+  special channel.
+
 * Lots of cleanups needed to make it fail more gracefully (right now most
   failures will result in a call to exit(EXIT_FAILURE)). It should be possible
   to recover from a lot of the errors that are encountered. This is especially
@@ -30,8 +34,11 @@ Essential
   when it gets HUPed. Should probably log to syslog (!) by default, with, an
   option to use itself for logging.
 
-* Test redundancy and fault tolerance.
+* Rolling upgrades by taking daemons out of the cloud one at a time. Protection
+  against taking down the whole cloud (e.g. need to send SIGQUIT to kill the
+  last daemon).
 
+* Test redundancy and fault tolerance.
 
 Wishlist
 --------
