@@ -31,10 +31,14 @@
 #define PARSE_ERR_FILE   0x02 /* couldn't open the log file */
 #define PARSE_ERR_CODE   0x04 /* couldn't parse the code for the line */
 #define PARSE_ERR_LOGN   0x08 /* rule didn't have a log name */
+#define PARSE_ERR_RESERVED 0x10 /* used a reserved log name */
+
 #define ADD_PERR(x, c) (x | (c << 16))
 
 #define OPEN_FLAGS	(O_APPEND | O_CREAT | O_WRONLY)
 #define OPEN_MODE	(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH)
+
+#define SPLOGGER_UNKNOWN_LOG "unknown.splog"
 
 /* not re-entrant */
 static char mess_buf[MAX_MESSLEN];
@@ -42,6 +46,10 @@ static mailbox mbox;
 static char *group_name = NULL;
 static char *config_name = NULL;
 static file_tbl* code_table[MAX_CODE];
+
+/* This is 0 if load_config has never been called and 1 if it has */
+static int ever_inited = 0;
+static int unknown_fd;
 
 void shutdown_cleanly(int dummy);
 void load_config(int dummy);
@@ -193,8 +201,8 @@ int main(int argc, char **argv) {
 
 		file_tbl *ent = code_table[mess_type];
 		if (ent == NULL) {
+			/* FIXME: use the logging facility once it's in place */
 			fprintf(stderr, "Code %d does not exit in code table.\n", mess_type);
-			continue;
 		}
 
 		/* Add a terminating newline character -- this lets us avoid an extra
@@ -205,9 +213,22 @@ int main(int argc, char **argv) {
 		}
 		bytes_recvd++;
 
-		int written = 0;
+		int bytes, written = 0;
 		while (bytes_recvd - written > 0) {
-			int bytes = write(ent->fd, mess_buf + written, bytes_recvd - written);
+			if ((written == 0) && (ent == NULL)) {
+				char code_string[6];
+				if (sprintf(code_string, "%d ", mess_type) < 0) {
+					perror("sprintf()");
+					exit(EXIT_FAILURE);
+				}
+				bytes = write(unknown_fd, code_string, strlen(code_string));
+				if (bytes < 0) {
+					perror("write()");
+					exit(EXIT_FAILURE);
+				}
+			}
+			bytes = write((ent == NULL) ? unknown_fd : ent->fd, mess_buf +
+					written, bytes_recvd - written);
 			if (bytes < 0) {
 				perror("write()");
 				exit(EXIT_FAILURE);
@@ -346,6 +367,11 @@ void load_config(int dummy) {
 		strcat(full_name, tail_ptr + start);
 		strcat(full_name, ".splog");
 
+		if (!strcmp(full_name, SPLOGGER_UNKNOWN_LOG)) {
+			parse_error_lines[num_parse_errors++] = PERR(PARSE_ERR_RESERVED);
+			continue;
+		}
+
 		/* Add the entry to the code table */
 		code_table[code]->fname = full_name;
 		ret = open(full_name, OPEN_FLAGS, OPEN_MODE);
@@ -378,6 +404,9 @@ void load_config(int dummy) {
 				case PARSE_ERR_LOGN:
 					fprintf(stderr, "%hu: rule had a code but no name\n", lnum);
 					break;
+				case PARSE_ERR_RESERVED:
+					fprintf(stderr, "%hu: a reserved name was specified\n", lnum);
+					break;
 				default:
 					fprintf(stderr, "%hu: unexpected error, unknown error code %hu\n",
 							lnum, err_code);
@@ -387,6 +416,12 @@ void load_config(int dummy) {
 	}
 
 	fclose(config_file);
+
+	if (!ever_inited) {
+		unknown_fd = open(SPLOGGER_UNKNOWN_LOG, OPEN_FLAGS, OPEN_MODE);
+		ever_inited++;
+	}
+
 
 	/* Free the space created by getline */
 	/*free(line_buf);*/

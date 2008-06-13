@@ -6,8 +6,8 @@ Essential
 * With respect to error handling and logging, the following sorts of errors
   should definitely be recoverable and when they are encountered the error
   should be logged and the daemon should proceed gracefully:
-   - Unknown message types should be redirected to a special log (so we don't
-     ever lose data) and the event should be logged
+   - Properly log when uknown messages are received
+   - More that I haven't thought of yet
 
 * Ability to send out new configurations from a single host with a command line
   client that reads the config file and sends out the config data over a
