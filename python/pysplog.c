@@ -5,7 +5,6 @@
 
 #include <Python.h>
 #include <sp.h>
-#include "data.h"
 
 typedef struct 
 {
@@ -91,7 +90,7 @@ static PyTypeObject splogger_SploggerType = {
 	0,							/* tp_getattro */
 	0,							/* tp_setattro */
 	0,							/* tp_as_buffer */
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,        /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,	/*tp_flags*/
 	"Splogger client object",	/* tp_doc */
 	0,							/* tp_traverse */
 	0,							/* tp_clear */
@@ -116,7 +115,7 @@ static PyMethodDef splogger_module_methods[] = {
     {NULL}  /* Sentinel */
 };
 
-PyMODINIT_FUNC init_splogger(void) 
+PyMODINIT_FUNC initsplogger(void) 
 {
     PyObject* m;
 

@@ -1,5 +1,4 @@
-PREFIX=$$HOME/local
-CFLAGS=-Wall -g -Os -I$(PREFIX)/include -L$(PREFIX)/lib
+CFLAGS=-Wall -g -Os
 LDFLAGS=-lspread
 
 all: sploggerd splogger_msg
@@ -11,7 +10,7 @@ code_config.o: code_config.h code_config.c
 	gcc $(CFLAGS) -c code_config.c
 
 splogger_msg: splogger_msg.c
-	LD_RUN_PATH=$$HOME/local/lib gcc $(CFLAGS) $(LDFLAGS) -o splogger_msg splogger_msg.c
+	gcc $(CFLAGS) $(LDFLAGS) -o splogger_msg splogger_msg.c
 
 sploggerd: sploggerd.c code_config.o
-	LD_RUN_PATH=$$HOME/local/lib gcc $(CFLAGS) $(LDFLAGS) -o sploggerd sploggerd.c code_config.o
+	gcc $(CFLAGS) $(LDFLAGS) -o sploggerd sploggerd.c code_config.o
