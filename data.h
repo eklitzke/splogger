@@ -22,7 +22,6 @@
 
 #define SPLOGGER_UNKNOWN_LOG "unknown.splog"
 
-
 struct file_tbl_s {
 	char *fname;
 	int fd;

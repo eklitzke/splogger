@@ -5,7 +5,7 @@
 
 file_tbl* code_table[MAX_CODE];
 
-/* This is 0 if load_config has never been called and 1 if it has */
+/* The file descriptor for our "unknown code" log */
 int unknown_fd;
 
 void load_code_config(int dummy);

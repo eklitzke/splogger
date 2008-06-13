@@ -14,6 +14,7 @@
 
 #include "code_config.h"
 
+/* This is 0 if load_config has never been called and 1 if it has */
 static int ever_inited = 0;
 
 /* This runs once when the program starts -- it's also the routine called when

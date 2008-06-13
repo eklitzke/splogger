@@ -52,3 +52,8 @@ Wishlist
 * Profile memory usage under a stress test and try to eliminate memory leaks
 
 * Long (GNU-style) options
+
+Python Client
+-------------
+* Add explicit connect/disconnect methods
+* Exceptions

@@ -10,7 +10,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-
 /* The default port to connect to */
 #define SPLOGGER_PORT "4803"
 
