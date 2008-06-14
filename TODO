@@ -53,6 +53,9 @@ Wishlist
 
 * Long (GNU-style) options
 
+* Don't depend on glibc. AFAIK right now the only dependency on glibc is GNU
+  getline, but there could be other things.
+
 Python Client
 -------------
 * Add explicit connect/disconnect methods
