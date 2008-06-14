@@ -6,7 +6,7 @@
 #include <Python.h>
 #include <sp.h>
 
-typedef struct 
+typedef struct
 {
 	PyObject_HEAD
 	mailbox mbox;
@@ -19,8 +19,8 @@ static PyObject* splogger_broadcast(PyObject *self, PyObject *args);
 static int splogger_init(SploggerObject* self, PyObject* args, PyObject* kwds)
 {
 	const char *port;
-    if (!PyArg_ParseTuple(args, "s", &port))
-        return -1;
+	if (!PyArg_ParseTuple(args, "s", &port))
+		return -1;
 
 	/* Connect on 127.0.0.1:4803 */
 	int ret = SP_connect(port, NULL, 0, 0, &(self->mbox), self->pgroupname);
@@ -65,7 +65,7 @@ static PyMethodDef splogger_methods[] = {
 		"broadcast", splogger_broadcast, METH_VARARGS,
 		"broadcast(code, group, message) -- brodcast a message"
 	},
- 
+
 	{NULL}
 };
 
@@ -112,19 +112,19 @@ static PyTypeObject splogger_SploggerType = {
 };
 
 static PyMethodDef splogger_module_methods[] = {
-    {NULL}  /* Sentinel */
+	{NULL}  /* Sentinel */
 };
 
-PyMODINIT_FUNC initsplogger(void) 
+PyMODINIT_FUNC initsplogger(void)
 {
-    PyObject* m;
+	PyObject* m;
 
 	splogger_SploggerType.tp_new = PyType_GenericNew;
-    if (PyType_Ready(&splogger_SploggerType) < 0)
-        return;
+	if (PyType_Ready(&splogger_SploggerType) < 0)
+		return;
 
 	m = Py_InitModule3("splogger", splogger_module_methods, "Easy to use library for broadcasting messages with splogger.");
 
-    Py_INCREF(&splogger_SploggerType);
-    PyModule_AddObject(m, "Splogger", (PyObject *)&splogger_SploggerType);
+	Py_INCREF(&splogger_SploggerType);
+	PyModule_AddObject(m, "Splogger", (PyObject *)&splogger_SploggerType);
 }
