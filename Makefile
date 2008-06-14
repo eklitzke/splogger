@@ -1,5 +1,5 @@
 CFLAGS=-Wall -g -Os
-LDFLAGS=-lspread
+LDFLAGS=-lspread -L$$HOME/local/lib
 
 all: sploggerd splogger_msg
 

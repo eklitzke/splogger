@@ -167,6 +167,7 @@ int main(int argc, char **argv) {
 		int bytes_recvd = SP_receive(mbox, (service *) &service_type, sender,
 				SPLOGGER_MAX_GROUPS, &num_groups, target_groups, &mess_type,
 				&endian_mismatch, MAX_MESSLEN - 1, mess_buf);
+		fprintf(stderr, "got a message\n");
 
 		/* Handle error conditions */
 		if (bytes_recvd < 0)

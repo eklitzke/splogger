@@ -9,7 +9,7 @@ macros = [('MODULE_VERSION', '"%s"' % __version__)]
 
 splogger_extension = Extension(
 	name='splogger',
-	sources=['pysplog.c'],
+	sources=['pysplogger.c'],
 	libraries=['spread'],
 	library_dirs=[os.path.join(os.environ['HOME'], 'local/lib')], #FIXME: maybe there's a better way to do this?
 	define_macros=macros

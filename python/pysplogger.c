@@ -5,6 +5,7 @@
 
 #include <Python.h>
 #include <sp.h>
+#include <stdio.h>
 
 typedef struct
 {
@@ -22,6 +23,7 @@ static PyTypeObject splogger_SploggerType;
 static PyObject*
 splogger_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
+	fprintf(stderr, "in splogger_new\n");
 	const unsigned short int port;
 	const char *host; /* XXX: remember to free this laster with PyMem_Free */
 	if (!PyArg_ParseTuple(args, "Hs", &port, &host))
@@ -43,7 +45,24 @@ splogger_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
 	/* FIXME: add a port/hostname attribute */
 	/* FIXME: reference counting? */
-	return obj;
+	return (PyObject *) obj;
+}
+
+static int
+splogger_init(SploggerObject* self, PyObject* args, PyObject* kwds)
+{
+	fprintf(stderr, "in splogger_init\n");
+	const unsigned short int port;
+	const char *host; /* XXX: remember to free this laster with PyMem_Free */
+	if (!PyArg_ParseTuple(args, "Hs", &port, &host))
+		return -1;
+
+	char port_s[6];
+	if (sprintf(port_s, "%hu", port) < 0) {
+		return -1;
+	}
+
+	return 0;
 }
 
 static PyObject *
@@ -60,7 +79,9 @@ splogger_broadcast(PyObject *pyself, PyObject *args)
 	/* Send out the message */
 	int ret = SP_multicast(self->mbox, self->service_type, group, code,
 			message_len, message);
+	fprintf(stderr, "return from multicast was %d\n", ret);
 	if (ret != message_len) {
+		SP_error(ret);
 		return NULL; /* FIXME: raise the right kind of error */
 	}
 
@@ -84,56 +105,57 @@ static PyMethodDef splogger_methods[] = {
 };
 
 static PyTypeObject splogger_SploggerType = {
-	PyObject_HEAD_INIT(NULL)
-	0,							/* ob_size */
-	"pysplog.Splogger",			/* tp_name */
-	sizeof(SploggerObject),		/* tp_basicsize */
-	0,							/* tp_itemsize */
+	PyObject_HEAD_INIT(&PyType_Type)
+	0,								/* ob_size */
+	"splogger.Splogger",			/* tp_name */
+	sizeof(SploggerObject),			/* tp_basicsize */
+	0,								/* tp_itemsize */
 	(destructor)splogger_dealloc,	/* tp_dealloc */
-	0,							/* tp_print */
-	0,							/* tp_getattr */
-	0,							/* tp_setattr */
-	0,							/* tp_compare */
-	0,							/* tp_repr */
-	0,							/* tp_as_number */
-	0,							/* tp_as_sequence */
-	0,							/* tp_as_mapping */
-	0,							/* tp_hash */
-	0,							/* tp_call */
-	0,							/* tp_str */
-	0,							/* tp_getattro */
-	0,							/* tp_setattro */
-	0,							/* tp_as_buffer */
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,	/*tp_flags*/
-	"Splogger client object",	/* tp_doc */
-	0,							/* tp_traverse */
-	0,							/* tp_clear */
-	0,							/* tp_richcompare */
-	0,							/* tp_weaklistoffset */
-	0,							/* tp_iter */
-	0,							/* tp_iternext */
-	splogger_methods,			/* tp_methods */
-	0,							/* tp_members */
-	0,							/* tp_getset */
-	0,							/* tp_base */
-	0,							/* tp_dict */
-	0,							/* tp_descr_get */
-	0,							/* tp_descr_set */
-	0,							/* tp_dictoffset */
-	0,							/* tp_init */
-	0,							/* tp_alloc */
-	splogger_new,				/* tp_new */
+	0,								/* tp_print */
+	0,								/* tp_getattr */
+	0,								/* tp_setattr */
+	0,								/* tp_compare */
+	0,								/* tp_repr */
+	0,								/* tp_as_number */
+	0,								/* tp_as_sequence */
+	0,								/* tp_as_mapping */
+	0,								/* tp_hash */
+	0,								/* tp_call */
+	0,								/* tp_str */
+	0,								/* tp_getattro */
+	0,								/* tp_setattro */
+	0,								/* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT,				/* tp_flags*/ /* FIXME: cannot subtype */
+	"Splogger client object",		/* tp_doc */
+	0,								/* tp_traverse */
+	0,								/* tp_clear */
+	0,								/* tp_richcompare */
+	0,								/* tp_weaklistoffset */
+	0,								/* tp_iter */
+	0,								/* tp_iternext */
+	splogger_methods,				/* tp_methods */
+	0,								/* tp_members */
+	0,								/* tp_getset */
+	0,								/* tp_base */
+	0,								/* tp_dict */
+	0,								/* tp_descr_get */
+	0,								/* tp_descr_set */
+	0,								/* tp_dictoffset */
+	//(initproc)splogger_init,								/* tp_init */
+	0,								/* tp_init */
+	0,								/* tp_alloc */
+	splogger_new,					/* tp_new */
+	PyObject_GC_Del,				/* tp_free */
 };
 
 static PyMethodDef splogger_module_methods[] = {
-	{NULL}  /* Sentinel */
+	{NULL}	/* Sentinel */
 };
 
 PyMODINIT_FUNC initsplogger(void)
 {
 	PyObject* m;
 
-	splogger_SploggerType.tp_new = PyType_GenericNew;
 	if (PyType_Ready(&splogger_SploggerType) < 0)
 		return;
 
