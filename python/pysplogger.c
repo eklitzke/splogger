@@ -14,22 +14,36 @@ typedef struct
 	char pgroupname[MAX_GROUP_NAME];
 } SploggerObject;
 
-static PyObject* splogger_broadcast(PyObject *self, PyObject *args);
+static PyObject*
+splogger_broadcast(PyObject *self, PyObject *args);
 
-static int splogger_init(SploggerObject* self, PyObject* args, PyObject* kwds)
+static PyTypeObject splogger_SploggerType;
+
+static PyObject*
+splogger_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-	const char *port;
-	if (!PyArg_ParseTuple(args, "s", &port))
-		return -1;
+	const unsigned short int port;
+	const char *host; /* XXX: remember to free this laster with PyMem_Free */
+	if (!PyArg_ParseTuple(args, "Hs", &port, &host))
+		return NULL;
 
-	/* Connect on 127.0.0.1:4803 */
-	int ret = SP_connect(port, NULL, 0, 0, &(self->mbox), self->pgroupname);
-	if (ret != ACCEPT_SESSION) {
-		SP_error(ret);
-		return -1;
+	char port_s[6];
+	if (sprintf(port_s, "%hu", port) < 0) {
+		return NULL;
 	}
 
-	return 0;
+	SploggerObject *obj = PyObject_NewVar(SploggerObject, &splogger_SploggerType, sizeof(SploggerObject *));
+
+	/* Connect on 127.0.0.1:4803 */
+	int ret = SP_connect(port_s, NULL, 0, 0, &(obj->mbox), obj->pgroupname);
+	if (ret != ACCEPT_SESSION) {
+		SP_error(ret);
+		return NULL;
+	}
+
+	/* FIXME: add a port/hostname attribute */
+	/* FIXME: reference counting? */
+	return obj;
 }
 
 static PyObject *
@@ -106,9 +120,9 @@ static PyTypeObject splogger_SploggerType = {
 	0,							/* tp_descr_get */
 	0,							/* tp_descr_set */
 	0,							/* tp_dictoffset */
-	(initproc)splogger_init,	/* tp_init */
+	0,							/* tp_init */
 	0,							/* tp_alloc */
-	PyType_GenericNew,			/* tp_new */
+	splogger_new,				/* tp_new */
 };
 
 static PyMethodDef splogger_module_methods[] = {
