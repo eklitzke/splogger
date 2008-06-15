@@ -18,10 +18,6 @@ Essential
   to recover from a lot of the errors that are encountered. This is especially
   important for a daemon which is expected to stay up 24x7.
 
-* There's almost no client support at the moment, other than splogger_msg which
-  is a debugging tool to send log messages to the splogger system. Need to
-  write a Python module for interacting with the splogger system.
-
 * Better configuration
    - Should be able to configure host/port of spread daemon
    - Should be able to configure the synchronization level
