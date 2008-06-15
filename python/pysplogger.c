@@ -5,7 +5,6 @@
 
 #include <Python.h>
 #include <sp.h>
-#include <stdio.h>
 
 typedef struct
 {
@@ -20,47 +19,76 @@ splogger_broadcast(PyObject *self, PyObject *args);
 
 static PyTypeObject splogger_SploggerType;
 
-static PyObject*
-splogger_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+static int
+splogger_init(SploggerObject *self, PyObject *args, PyObject *kwds)
 {
-	fprintf(stderr, "in splogger_new\n");
-	const unsigned short int port;
-	const char *host; /* XXX: remember to free this laster with PyMem_Free */
-	if (!PyArg_ParseTuple(args, "Hs", &port, &host))
-		return NULL;
+	PyObject *port;
+	PyObject *host;
 
-	char port_s[6];
-	if (sprintf(port_s, "%hu", port) < 0) {
-		return NULL;
+	if (!PyArg_ParseTuple(args, "O!S", &PyInt_Type, &port, &host))
+		return -1;
+
+	PyObject *min_port = PyLong_FromLong(1);
+	PyObject *max_port = PyLong_FromLong((1 << 16) - 1);
+
+	/* Check if the port is too big or too small */
+
+	int too_small, too_large;
+	if ((PyObject_Cmp(port, min_port, &too_small) == -1) || (PyObject_Cmp(port, max_port, &too_large) == -1)) {
+		Py_DECREF(port);
+		Py_DECREF(host);
+		Py_DECREF(min_port);
+		Py_DECREF(max_port);
+		return -1;
 	}
 
-	SploggerObject *obj = PyObject_NewVar(SploggerObject, &splogger_SploggerType, sizeof(SploggerObject *));
+	Py_DECREF(min_port);
+	Py_DECREF(max_port);
+
+	if ((too_small == -1) || (too_large == 1)) {
+		/* The port was too big or too small */
+		/* FIXME */
+		return -1;
+	}
+
+	/* Convert the port into a string */
+	PyObject *port_as_py_string = PyObject_Str(port);
+	const char *port_s = PyString_AsString(port_as_py_string);
+	const char *host_s = PyString_AsString(host);
+	char connect_string[malloc(strlen(port_s) + strlen(host_s) + 2)];
+	sprintf(connect_string, "%s@%s", port_s, host_s);
+	Py_DECREF(port_as_py_string);
 
 	/* Connect on 127.0.0.1:4803 */
-	int ret = SP_connect(port_s, NULL, 0, 0, &(obj->mbox), obj->pgroupname);
+	int ret = SP_connect(connect_string, NULL, 0, 0, &(self->mbox), self->pgroupname);
+
+	self->service_type = FIFO_MESS;
+
+	/* FIXME */
+
 	if (ret != ACCEPT_SESSION) {
 		SP_error(ret);
-		return NULL;
-	}
-
-	/* FIXME: add a port/hostname attribute */
-	/* FIXME: reference counting? */
-	return (PyObject *) obj;
-}
-
-static int
-splogger_init(SploggerObject* self, PyObject* args, PyObject* kwds)
-{
-	fprintf(stderr, "in splogger_init\n");
-	const unsigned short int port;
-	const char *host; /* XXX: remember to free this laster with PyMem_Free */
-	if (!PyArg_ParseTuple(args, "Hs", &port, &host))
-		return -1;
-
-	char port_s[6];
-	if (sprintf(port_s, "%hu", port) < 0) {
 		return -1;
 	}
+
+#if 0
+	PyObject *pyself = (PyObject *) self;
+	const char *p = "port";
+
+	if (PyObject_SetAttrString(pyself, p, port) == -1) {
+		Py_DECREF(port);
+		Py_DECREF(host);
+		return -1;
+	}
+	if (PyObject_SetAttrString(pyself, "host", host) == -1) {
+		Py_DECREF(port);
+		Py_DECREF(host);
+		return -1;
+	}
+#else
+	Py_DECREF(port);
+	Py_DECREF(host);
+#endif
 
 	return 0;
 }
@@ -70,16 +98,16 @@ splogger_broadcast(PyObject *pyself, PyObject *args)
 {
 	SploggerObject *self = (SploggerObject *) pyself;
 
-	const int code, message_len;
+	const short int code;
+	const int message_len;
 	const char *message, *group;
 
-	if (!PyArg_ParseTuple(args, "dss#", &code, &group, &message, &message_len))
+	if (!PyArg_ParseTuple(args, "hss#", &code, &group, &message, &message_len))
 		return NULL;
 
 	/* Send out the message */
-	int ret = SP_multicast(self->mbox, self->service_type, group, code,
+	int ret = SP_multicast(self->mbox, self->service_type, group, (int16) code,
 			message_len, message);
-	fprintf(stderr, "return from multicast was %d\n", ret);
 	if (ret != message_len) {
 		SP_error(ret);
 		return NULL; /* FIXME: raise the right kind of error */
@@ -122,8 +150,8 @@ static PyTypeObject splogger_SploggerType = {
 	0,								/* tp_hash */
 	0,								/* tp_call */
 	0,								/* tp_str */
-	0,								/* tp_getattro */
-	0,								/* tp_setattro */
+	PyObject_GenericGetAttr,		/* tp_getattro */
+	PyObject_GenericSetAttr,		/* tp_setattro */
 	0,								/* tp_as_buffer */
 	Py_TPFLAGS_DEFAULT,				/* tp_flags*/ /* FIXME: cannot subtype */
 	"Splogger client object",		/* tp_doc */
@@ -141,11 +169,9 @@ static PyTypeObject splogger_SploggerType = {
 	0,								/* tp_descr_get */
 	0,								/* tp_descr_set */
 	0,								/* tp_dictoffset */
-	//(initproc)splogger_init,								/* tp_init */
-	0,								/* tp_init */
+	(initproc)splogger_init,		/* tp_init */
 	0,								/* tp_alloc */
-	splogger_new,					/* tp_new */
-	PyObject_GC_Del,				/* tp_free */
+	PyType_GenericNew,				/* tp_new */
 };
 
 static PyMethodDef splogger_module_methods[] = {
