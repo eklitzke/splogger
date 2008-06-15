@@ -6,11 +6,17 @@
 #include <Python.h>
 #include <sp.h>
 
-const char *splogger_doc =\
-"This class implements a client for the splogger service. Clients connect to a\
-spread daemon upon instantiation. It is not possible to connect to another\
-host. If you want to manually close the connection and remove the client from\
-the spread swarm, you must delete the client (i.e. del splogger_client)";
+#ifndef SPLOGGER_DEFAULT_PORT
+#define SPLOGGER_DEFAULT_PORT 4803
+#endif
+
+#ifndef SPLOGGER_DEFAULT_HOST
+#define SPLOGGER_DEFAULT_HOST "localhost"
+#endif
+
+#define SPLOGGER_MIN_PORT 1
+#define SPLOGGER_MAX_PORT 65535
+#define SPLOGGER_PORT_STR "Port must be an integer in the range 1 <= port <= 65535"
 
 typedef struct
 {
@@ -21,47 +27,55 @@ typedef struct
 } SploggerObject;
 
 static PyObject*
-splogger_broadcast(PyObject *self, PyObject *args);
+splogger_broadcast(PyObject *self, PyObject *args, PyObject *kwds);
 
 static PyTypeObject splogger_SploggerType;
 
 static int
 splogger_init(SploggerObject *self, PyObject *args, PyObject *kwds)
 {
-	PyObject *port;
+	PyObject *port = NULL;
 	PyObject *host = NULL;
 
 	/* The default service type is RELIABLE_MESS (i.e. reliable transport
 	 * delivered on top of UDP) */
 	int service_type = RELIABLE_MESS;
 
-	/* TODO: support kwargs */
-	if (!PyArg_ParseTuple(args, "O!|Sd", &PyInt_Type, &port, &host, &service_type))
+	static char *kwlist[] = {"port", "host", "service_type", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O!Sd", kwlist, &PyInt_Type,
+				&port, &host, &service_type))
 		return -1;
 
-	/* The default host is localhost */
-	if (host == NULL)
-		host = PyString_FromString("localhost");
+	if (port == NULL)
+		port = PyInt_FromLong(SPLOGGER_DEFAULT_PORT);
 
-	PyObject *min_port = PyLong_FromLong(1);
-	PyObject *max_port = PyLong_FromLong((1 << 16) - 1);
+	if (host == NULL)
+		host = PyString_FromString(SPLOGGER_DEFAULT_HOST);
+
+	PyObject *min_port = PyLong_FromLong(SPLOGGER_MIN_PORT);
+	PyObject *max_port = PyLong_FromLong(SPLOGGER_MAX_PORT);
+
+#define PORT_CMP_FAIL\
+	Py_DECREF(port);\
+	Py_DECREF(host);\
+	Py_DECREF(min_port);\
+	Py_DECREF(max_port);\
+	return -1
 
 	/* Check if the port is too big or too small */
 	int too_small, too_large;
-	if ((PyObject_Cmp(port, min_port, &too_small) == -1) || (PyObject_Cmp(port, max_port, &too_large) == -1)) {
-		Py_DECREF(port);
-		Py_DECREF(host);
-		Py_DECREF(min_port);
-		Py_DECREF(max_port);
-		return -1;
+	if (PyObject_Cmp(port, min_port, &too_small) == -1) {
+		PORT_CMP_FAIL;
+	} if (PyObject_Cmp(port, max_port, &too_large) == -1) {
+		PORT_CMP_FAIL;
 	}
 
 	Py_DECREF(min_port);
 	Py_DECREF(max_port);
 
 	if ((too_small == -1) || (too_large == 1)) {
-		/* The port was too big or too small */
-		/* FIXME */
+		PyErr_SetString(PyExc_ValueError, SPLOGGER_PORT_STR);
 		return -1;
 	}
 
@@ -108,19 +122,23 @@ splogger_init(SploggerObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-splogger_broadcast(PyObject *pyself, PyObject *args)
+splogger_broadcast(PyObject *pyself, PyObject *args, PyObject *kwds)
 {
 	SploggerObject *self = (SploggerObject *) pyself;
 
 	const short int code;
 	const int message_len;
 	const char *message, *group;
+	int service_type = self->service_type;
 
-	if (!PyArg_ParseTuple(args, "hss#", &code, &group, &message, &message_len))
+	static char *kwlist[] = {"code", "group", "message", "service_type", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "hss#|d", kwlist, &code,
+				&group, &message, &message_len, &service_type))
 		return NULL;
 
 	/* Send out the message */
-	int ret = SP_multicast(self->mbox, self->service_type, group, (int16) code,
+	int ret = SP_multicast(self->mbox, service_type, group, (int16) code,
 			message_len, message);
 	if (ret != message_len) {
 		SP_error(ret);
@@ -139,7 +157,7 @@ splogger_dealloc(SploggerObject* self)
 
 static PyMethodDef splogger_methods[] = {
 	{
-		"broadcast", splogger_broadcast, METH_VARARGS,
+		"broadcast", (PyCFunction) splogger_broadcast, METH_KEYWORDS,
 		"broadcast(code, group, message) -- brodcast a message"
 	},
 
