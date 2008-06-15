@@ -6,6 +6,12 @@
 #include <Python.h>
 #include <sp.h>
 
+const char *splogger_doc =\
+"This class implements a client for the splogger service. Clients connect to a\
+spread daemon upon instantiation. It is not possible to connect to another\
+host. If you want to manually close the connection and remove the client from\
+the spread swarm, you must delete the client (i.e. del splogger_client)";
+
 typedef struct
 {
 	PyObject_HEAD
@@ -23,16 +29,24 @@ static int
 splogger_init(SploggerObject *self, PyObject *args, PyObject *kwds)
 {
 	PyObject *port;
-	PyObject *host;
+	PyObject *host = NULL;
 
-	if (!PyArg_ParseTuple(args, "O!S", &PyInt_Type, &port, &host))
+	/* The default service type is RELIABLE_MESS (i.e. reliable transport
+	 * delivered on top of UDP) */
+	int service_type = RELIABLE_MESS;
+
+	/* TODO: support kwargs */
+	if (!PyArg_ParseTuple(args, "O!|Sd", &PyInt_Type, &port, &host, &service_type))
 		return -1;
+
+	/* The default host is localhost */
+	if (host == NULL)
+		host = PyString_FromString("localhost");
 
 	PyObject *min_port = PyLong_FromLong(1);
 	PyObject *max_port = PyLong_FromLong((1 << 16) - 1);
 
 	/* Check if the port is too big or too small */
-
 	int too_small, too_large;
 	if ((PyObject_Cmp(port, min_port, &too_small) == -1) || (PyObject_Cmp(port, max_port, &too_large) == -1)) {
 		Py_DECREF(port);
@@ -55,7 +69,7 @@ splogger_init(SploggerObject *self, PyObject *args, PyObject *kwds)
 	PyObject *port_as_py_string = PyObject_Str(port);
 	const char *port_s = PyString_AsString(port_as_py_string);
 	const char *host_s = PyString_AsString(host);
-	char connect_string[malloc(strlen(port_s) + strlen(host_s) + 2)];
+	char connect_string[strlen(port_s) + strlen(host_s) + 2];
 	sprintf(connect_string, "%s@%s", port_s, host_s);
 	Py_DECREF(port_as_py_string);
 
@@ -154,7 +168,10 @@ static PyTypeObject splogger_SploggerType = {
 	PyObject_GenericSetAttr,		/* tp_setattro */
 	0,								/* tp_as_buffer */
 	Py_TPFLAGS_DEFAULT,				/* tp_flags*/ /* FIXME: cannot subtype */
-	"Splogger client object",		/* tp_doc */
+"This class implements a client for the splogger service. Clients connect to a\n\
+spread daemon upon instantiation. It is not possible to connect to another\n\
+host. If you want to manually close the connection and remove the client from\n\
+the spread swarm, you must delete the client (i.e. del splogger_client).", /* tp_doc */
 	0,								/* tp_traverse */
 	0,								/* tp_clear */
 	0,								/* tp_richcompare */
@@ -189,4 +206,12 @@ PyMODINIT_FUNC initsplogger(void)
 
 	Py_INCREF(&splogger_SploggerType);
 	PyModule_AddObject(m, "Splogger", (PyObject *)&splogger_SploggerType);
+
+	/* Now we add all of the service_type flags to the module */
+	PyModule_AddIntConstant(m, "UNRELIABLE_MESS", UNRELIABLE_MESS);
+	PyModule_AddIntConstant(m, "RELIABLE_MESS", RELIABLE_MESS);
+	PyModule_AddIntConstant(m, "FIFO_MESS", FIFO_MESS);
+	PyModule_AddIntConstant(m, "CAUSAL_MESS", CAUSAL_MESS);
+	PyModule_AddIntConstant(m, "AGREED_MESS", AGREED_MESS);
+	PyModule_AddIntConstant(m, "SAFE_MESS", SAFE_MESS);
 }
